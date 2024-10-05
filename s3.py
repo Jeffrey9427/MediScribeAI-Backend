@@ -30,19 +30,19 @@ def get_s3():
 
 @router.post("/audio/upload/{filename}")
 async def upload_file(filename: str, upload_file: UploadFile = File(...), s3 = Depends(get_s3)):
-    file: tuple[io.BytesIO, str]
+    file: io.BytesIO
     tempfile.TemporaryFile()
 
     temp = tempfile.TemporaryFile()
     try:
         temp.write(upload_file.file.read())
         temp.seek(0)
-        file = (io.BytesIO(temp.read()), filename)
+        file = io.BytesIO(temp.read())
     finally:
         temp.close()
     
     try:
-        s3.upload_fileobj(Fileobj=file[0], Bucket=BUCKET_NAME, Key=file[1])
+        s3.upload_fileobj(Fileobj=file[0], Bucket=BUCKET_NAME, Key=filename)
     except ClientError as e:
         raise e
 
