@@ -3,7 +3,7 @@ from models import AudioFile
 import boto3
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, FastAPI, HTTPException, Depends, UploadFile, Response, status, File
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel
 from settings import *
 import tempfile
@@ -28,21 +28,23 @@ s3 = boto3.client(
 def get_s3():
     return s3
 
-@router.post("/audio/upload/{filename}")
-async def upload_file(filename: str, upload_file: UploadFile = File(...), s3 = Depends(get_s3)):
+@router.post("/audio/upload")
+async def upload_file(file_upload: UploadFile = File(...), s3: Session = Depends(get_s3)):
+    if not file_upload.size:
+        return HTMLResponse(content="File is empty!", status_code=415)
+
     file: io.BytesIO
-    tempfile.TemporaryFile()
 
     temp = tempfile.TemporaryFile()
     try:
-        temp.write(upload_file.file.read())
+        temp.write(file_upload.file.read())
         temp.seek(0)
         file = io.BytesIO(temp.read())
     finally:
         temp.close()
     
     try:
-        s3.upload_fileobj(Fileobj=file[0], Bucket=BUCKET_NAME, Key=filename)
+        s3.upload_fileobj(Fileobj=file, Bucket=BUCKET_NAME, Key=file_upload.filename)
     except ClientError as e:
         raise e
 
@@ -52,7 +54,8 @@ async def get_all_file_detail(s3 = Depends(get_s3)):
         file_details = s3.list_objects_v2(Bucket=BUCKET_NAME)
     except ClientError as e:
         raise e
-    return JSONResponse(content=file_details["Contents"], status_code=200)
+    
+    return file_details["Contents"]
 
 @router.get("/audio/download/{filename}")
 async def download_file(filename: str, s3 = Depends(get_s3)):
