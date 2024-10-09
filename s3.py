@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel
 from settings import *
 import uuid
+from crud import *
 
 import tempfile
 import io
@@ -75,3 +76,13 @@ async def download_file(filename: str, s3 = Depends(get_s3)):
         headers={"filename": filename}
     )
 
+@router.delete("/audio/delete/{id}")
+async def delete_file(id: int, s3 = Depends(get_s3), db: Session = Depends(get_db)):
+    try:
+        filename = get_AudioFile_filename_by_id(id=id, db=db)
+        db_audio = delete_AudioFile(id=id, db=db)
+        s3.delete_object(Bucket=BUCKET_NAME, Key="/Audio/"+filename)
+        db_audio.commit()
+
+    except:
+        print("An error occured")
