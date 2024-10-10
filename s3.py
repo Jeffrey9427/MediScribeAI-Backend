@@ -11,6 +11,7 @@ import io
 from sqlalchemy import Column, Integer, Float, LargeBinary, String
 from sqlalchemy.orm import Session
 from database import get_db, Base, engine
+from typing import List
 
 app = FastAPI()
 
@@ -28,6 +29,15 @@ s3 = boto3.client(
 def get_s3():
     return s3
 
+class AudioUpdateModel(BaseModel):
+    new_title: str
+
+class AudioMetadata(BaseModel):
+    filename: str
+    content_length: int
+    last_modified: str
+    content_type: str
+
 @router.post("/audio/upload")
 async def upload_file(file_upload: UploadFile = File(...), s3: Session = Depends(get_s3)):
     if not file_upload.size:
@@ -44,14 +54,16 @@ async def upload_file(file_upload: UploadFile = File(...), s3: Session = Depends
         temp.close()
     
     try:
-        s3.upload_fileobj(Fileobj=file, Bucket=BUCKET_NAME, Key=file_upload.filename)
+        s3.upload_fileobj(Fileobj=file, Bucket=BUCKET_NAME, Key=f"audios/{file_upload.filename}")
     except ClientError as e:
         raise e
 
-@router.get("/audio/get_all_file_detail")
-async def get_all_file_detail(s3 = Depends(get_s3)):
+    return JSONResponse(content={"message": "File uploaded successfully!", "filename": file_upload.filename}, status_code=200)
+
+@router.get("/audio/get_all_file_detail/{folder_name}")
+async def get_all_file_detail(folder_name: str, s3 = Depends(get_s3)):
     try:
-        file_details = s3.list_objects_v2(Bucket=BUCKET_NAME)
+        file_details = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix=f"{folder_name}/")
     except ClientError as e:
         raise e
     
@@ -60,10 +72,62 @@ async def get_all_file_detail(s3 = Depends(get_s3)):
 @router.get("/audio/download/{filename}")
 async def download_file(filename: str, s3 = Depends(get_s3)):
     try:
-        file = s3.get_object(Bucket=BUCKET_NAME, Key=filename)
+        file = s3.get_object(Bucket=BUCKET_NAME, Key=f"audios/{filename}")
     except ClientError as e:
         raise e
     return Response(
         content=file['Body'].read(),
         headers={"filename": filename}
     )
+
+@router.put("/audio/update/{filename}")
+async def update_filename(filename: str, update: AudioUpdateModel, s3 = Depends(get_s3)):
+    try:
+        print(f"Filename: {filename}")
+        print(f"New Title: {update.new_title}")
+        
+        new_key = f"audios/{update.new_title}"
+        s3.copy_object(
+            CopySource={'Bucket': BUCKET_NAME, 'Key': f"audios/{filename}"},
+            Bucket=BUCKET_NAME,
+            Key=new_key
+        )
+
+        s3.delete_object(Bucket=BUCKET_NAME, Key=f"audios/{filename}")
+    except ClientError as e:
+        raise e
+    return JSONResponse(content={"message": f"File title updated to {update.new_title}"}, status_code=200)
+
+    
+@router.get("/audio/metadata", response_model=List[AudioMetadata])
+async def list_audio_metadata(s3 = Depends(get_s3)):
+    try:
+        response = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix='audios/')
+        if 'Contents' not in response:
+            return [] 
+
+        metadata_list = []
+        for obj in response['Contents']:
+            key = obj['Key']
+            filename = key.split('/')[-1]  
+            # Fetching metadata for each file
+            metadata_response = s3.head_object(Bucket=BUCKET_NAME, Key=key)
+            last_modified = metadata_response['LastModified'].strftime("%d/%m/%Y, %H:%M")
+            # duration = get_audio_duration(key)
+
+            url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{key}"
+
+            metadata = {
+                "filename": filename,
+                "content_length": metadata_response['ContentLength'],
+                "last_modified": last_modified,
+                "content_type": metadata_response['ContentType'],
+                # "duration": duration,
+                "url": url,
+            }
+            metadata_list.append(metadata)
+
+    except ClientError as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching audio metadata: {str(e)}")
+
+    return JSONResponse(content=metadata_list, status_code=200)
