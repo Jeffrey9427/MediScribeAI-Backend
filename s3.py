@@ -6,6 +6,9 @@ from fastapi import APIRouter, FastAPI, HTTPException, Depends, UploadFile, Resp
 from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel
 from settings import *
+import uuid
+from crud import *
+
 import tempfile
 import io
 from sqlalchemy import Column, Integer, Float, LargeBinary, String
@@ -29,6 +32,10 @@ s3 = boto3.client(
 def get_s3():
     return s3
 
+def create_s3_name(file_name, doctor_id):
+        unique_id = str(uuid.uuid4())
+        return f"{doctor_id}_{unique_id}_{file_name}"
+
 class AudioUpdateModel(BaseModel):
     new_title: str
 
@@ -39,7 +46,7 @@ class AudioMetadata(BaseModel):
     content_type: str
 
 @router.post("/audio/upload")
-async def upload_file(file_upload: UploadFile = File(...), s3: Session = Depends(get_s3)):
+async def upload_file(doctor_id: int, file_upload: UploadFile = File(...),  s3: Session = Depends(get_s3)):
     if not file_upload.size:
         return HTMLResponse(content="File is empty!", status_code=415)
 
@@ -54,7 +61,7 @@ async def upload_file(file_upload: UploadFile = File(...), s3: Session = Depends
         temp.close()
     
     try:
-        s3.upload_fileobj(Fileobj=file, Bucket=BUCKET_NAME, Key=f"audios/{file_upload.filename}")
+        s3.upload_fileobj(Fileobj=file, Bucket=BUCKET_NAME, Key=create_s3_name(file_upload.filename, doctor_id))
     except ClientError as e:
         raise e
 
@@ -66,8 +73,8 @@ async def get_all_file_detail(folder_name: str, s3 = Depends(get_s3)):
         file_details = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix=f"{folder_name}/")
     except ClientError as e:
         raise e
-    
     return file_details["Contents"]
+
 
 @router.get("/audio/download/{filename}")
 async def download_file(filename: str, s3 = Depends(get_s3)):
@@ -79,6 +86,17 @@ async def download_file(filename: str, s3 = Depends(get_s3)):
         content=file['Body'].read(),
         headers={"filename": filename}
     )
+
+@router.delete("/audio/delete/{id}")
+async def delete_file(id: int, s3 = Depends(get_s3), db: Session = Depends(get_db)):
+    try:
+        filename = get_AudioFile_filename_by_id(id=id, db=db)
+        db_audio = delete_AudioFile(id=id, db=db)
+        s3.delete_object(Bucket=BUCKET_NAME, Key="/Audio/"+filename)
+        db_audio.commit()
+
+    except:
+        print("An error occured")
 
 @router.put("/audio/update/{filename}")
 async def update_filename(filename: str, update: AudioUpdateModel, s3 = Depends(get_s3)):

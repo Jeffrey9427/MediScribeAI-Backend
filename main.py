@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from database import get_db, engine
 import models
 
-import s3
+import s3,transcribe
 
 models.Base.metadata.create_all(bind = engine)
 
@@ -16,6 +16,7 @@ app = FastAPI()
 router = APIRouter()
 
 app.include_router(s3.router)
+app.include_router(transcribe.router)
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
