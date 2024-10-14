@@ -12,6 +12,7 @@ import uuid
 
 
 
+
 class TranscribeService:
         def __init__(self):
             self.client = boto3.client("transcribe",
@@ -21,14 +22,14 @@ class TranscribeService:
 
             # self.s3Client = boto3.client('s3')
 
-        def create_s3_name(self, file_name, doctor_id):
+        def create_s3_name(self, file_name, doctor_id ):
             unique_id = str(uuid.uuid4())
             return f"{doctor_id}_{unique_id}_{file_name}-transcript"
              
 
 
-        def start_job (self, file_name: str):
-                job_name = f"{file_name}-transcript"
+        def start_job (self, audio_s3_key: int, db: Session):
+                job_name = f"{audio_s3_key}_transcript"
                 self.client.start_transcription_job(
                     TranscriptionJobName= job_name,
                     IdentifyMultipleLanguages=True,
@@ -48,7 +49,7 @@ class TranscribeService:
                     },
 
                     Media={
-                        "MediaFileUri": f"s3://mediscribe/audios/{file_name}"
+                        "MediaFileUri": f"s3://mediscribe/audios/{audio_s3_key}"
                     },
 
                     Settings = {
@@ -58,6 +59,16 @@ class TranscribeService:
                     OutputBucketName = 'mediscribe',
                     OutputKey = f'transcriptions/{job_name}.json'     
                 )
+            
+                job_record = Transcription(
+                    audio_s3_key = audio_s3_key,
+                    s3_key=job_name  # This is where the transcript will be stored in S3
+                )
+
+                # Commit the job record to the database
+                db.add(job_record)
+                db.commit()
+                db.refresh(job_record)
 
             
        
@@ -94,15 +105,15 @@ class TranscribeService:
         
          
 
-        def get_result(self, file_name: str, doctor_id: int, patient_name:str, db: Session):
+        def get_result(self, audio_s3_key: str, db: Session):
 
-            transcript_inDb = db.query(Transcription).filter_by(file_name=file_name).first()
-            if not transcript_inDb:
-                raise HTTPException(status_code=404, detail=f"Transcript for {file_name} not found in the database")
+            transcript_inDb = db.query(Transcription).filter_by(audio_s3_key =audio_s3_key ).first()
             
+            if not transcript_inDb:
+                raise HTTPException(status_code=404, detail=f"Transcript for audio{audio_s3_key} not found in the database")
+            
+            s3_name = transcript_inDb.s3_key
             if transcript_inDb.status == 'COMPLETED':
-
-                s3_name = transcript_inDb.s3_name
                 transcript_inS3 = boto3.client('s3').get_object(Bucket='mediscribe', Key=f'transcriptions/{s3_name}.json')
                 transcript_json = json.loads(transcript_inS3["Body"].read().decode("utf-8"))
                         # Retrieve audio segments from results
@@ -119,21 +130,13 @@ class TranscribeService:
                     response = self.client.get_transcription_job(TranscriptionJobName=s3_name)
                     job_status = response['TranscriptionJob']['TranscriptionJobStatus']
                     if job_status in ["COMPLETED", "FAILED"]:
+                        transcript_inDb.status = job_status  # Update the status to COMPLETED or FAILED
+                        db.commit()
                         if job_status == "COMPLETED":
-                            transcript_data = boto3.client('s3').get_object(Bucket='mediscribe', Key=f'transcriptions/{job_name}.json')
+                            transcript_data = boto3.client('s3').get_object(Bucket='mediscribe', Key=f'transcriptions/{s3_name}.json')
                             transcript_json = json.loads(transcript_data["Body"].read().decode("utf-8"))
-
-                            # job_record = TranscriptionJob( 
-                            #     doctor_id = doctor_id,
-                            #     patient_name = patient_name
-                            #     file_name = file_name,
-                            #     s3_name = job_name,
-                            # )
                             
-                                
-                            # db.add(job_record)
-                            # db.commit()
-                            # db.refresh(job_record)  # Return the job record after it's saved
+                         # Return the job record after it's saved
                                 
                             # return {"status": "COMPLETED", "Data": job_record}
 
@@ -146,7 +149,7 @@ class TranscribeService:
                     
                     timeout -= 1
                     time.sleep(5)
-                return {"status": "IN_PROGRESS"}
+                # return {"status": "IN_PROGRESS"}
         
     
         # def get_result(transcript_uri):

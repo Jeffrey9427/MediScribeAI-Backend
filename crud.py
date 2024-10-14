@@ -15,3 +15,17 @@ def delete_AudioFile(id: int, db: Session):
     db_audio = get_AudioFile_by_id(id=id, db=db)
     db.delete(db_audio)
     return db
+
+
+def new_AudioFile(doctor_id,patient_name,s3_name,filename, db: Session):
+    audio_file_record = models.AudioFile(
+        doctor_id=doctor_id,
+        file_name=filename,
+        s3_key=s3_name,
+        patient_name=patient_name
+    )
+    db.add(audio_file_record)
+    db.commit()
+    db.refresh(audio_file_record)  # Return the newly added record
+
+    return audio_file_record
