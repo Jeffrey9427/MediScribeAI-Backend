@@ -46,7 +46,7 @@ class AudioMetadata(BaseModel):
     content_type: str
 
 @router.post("/audio/upload")
-async def upload_file(doctor_id: int, file_upload: UploadFile = File(...),  s3: Session = Depends(get_s3)):
+async def upload_file(doctor_id: int, patient_name: str, file_upload: UploadFile = File(...), db:Session = Depends(get_db), s3: Session = Depends(get_s3)):
     if not file_upload.size:
         return HTMLResponse(content="File is empty!", status_code=415)
 
@@ -59,11 +59,26 @@ async def upload_file(doctor_id: int, file_upload: UploadFile = File(...),  s3: 
         file = io.BytesIO(temp.read())
     finally:
         temp.close()
+            
+    # Create a unique name for the S3 file
+    s3_name = create_s3_name(file_upload.filename, doctor_id)
     
+    # Upload file to S3
     try:
-        s3.upload_fileobj(Fileobj=file, Bucket=BUCKET_NAME, Key=create_s3_name(file_upload.filename, doctor_id))
+        s3.upload_fileobj(Fileobj=file, Bucket=BUCKET_NAME, Key="audios/" + s3_name)
     except ClientError as e:
-        raise e
+        raise HTTPException(status_code=500, detail=f"Failed to upload file to S3: {str(e)}")
+    
+    # Add the uploaded file metadata to the database
+    try:
+        
+        audio_file_record = new_AudioFile(doctor_id, patient_name, s3_name, file_upload.filename , db)
+        return {"message": "File uploaded successfully", "audio_file": audio_file_record}
+    except Exception as e:
+        db.rollback()  # Rollback in case of error
+        raise HTTPException(status_code=500, detail=f"Failed to save file metadata: {str(e)}")
+
+    
 
     return JSONResponse(content={"message": "File uploaded successfully!", "filename": file_upload.filename}, status_code=200)
 
