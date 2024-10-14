@@ -96,56 +96,56 @@ async def delete_file(id: int, s3 = Depends(get_s3), db: Session = Depends(get_d
         db_audio.commit()
 
     except:
-        print("An error occured")
+        print("An error occured")   
 
-@router.put("/audio/update/{filename}")
-async def update_filename(filename: str, update: AudioUpdateModel, s3 = Depends(get_s3)):
-    try:
-        print(f"Filename: {filename}")
-        print(f"New Title: {update.new_title}")
+# @router.put("/audio/update/{filename}")
+# async def update_filename(filename: str, update: AudioUpdateModel, s3 = Depends(get_s3)):
+#     try:
+#         print(f"Filename: {filename}")
+#         print(f"New Title: {update.new_title}")
         
-        new_key = f"audios/{update.new_title}"
-        s3.copy_object(
-            CopySource={'Bucket': BUCKET_NAME, 'Key': f"audios/{filename}"},
-            Bucket=BUCKET_NAME,
-            Key=new_key
-        )
+#         new_key = f"audios/{update.new_title}"
+#         s3.copy_object(
+#             CopySource={'Bucket': BUCKET_NAME, 'Key': f"audios/{filename}"},
+#             Bucket=BUCKET_NAME,
+#             Key=new_key
+#         ) 
 
-        s3.delete_object(Bucket=BUCKET_NAME, Key=f"audios/{filename}")
-    except ClientError as e:
-        raise e
-    return JSONResponse(content={"message": f"File title updated to {update.new_title}"}, status_code=200)
+#         s3.delete_object(Bucket=BUCKET_NAME, Key=f"audios/{filename}")
+#     except ClientError as e:
+#         raise e
+#     return JSONResponse(content={"message": f"File title updated to {update.new_title}"}, status_code=200)
 
     
-@router.get("/audio/metadata", response_model=List[AudioMetadata])
-async def list_audio_metadata(s3 = Depends(get_s3)):
-    try:
-        response = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix='audios/')
-        if 'Contents' not in response:
-            return [] 
+# @router.get("/audio/metadata", response_model=List[AudioMetadata])
+# async def list_audio_metadata(s3 = Depends(get_s3)):
+#     try:
+#         response = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix='audios/')
+#         if 'Contents' not in response:
+#             return [] 
 
-        metadata_list = []
-        for obj in response['Contents']:
-            key = obj['Key']
-            filename = key.split('/')[-1]  
-            # Fetching metadata for each file
-            metadata_response = s3.head_object(Bucket=BUCKET_NAME, Key=key)
-            last_modified = metadata_response['LastModified'].strftime("%d/%m/%Y, %H:%M")
-            # duration = get_audio_duration(key)
+#         metadata_list = []
+#         for obj in response['Contents']:
+#             key = obj['Key']
+#             filename = key.split('/')[-1]  
+#             # Fetching metadata for each file
+#             metadata_response = s3.head_object(Bucket=BUCKET_NAME, Key=key)
+#             last_modified = metadata_response['LastModified'].strftime("%d/%m/%Y, %H:%M")
+#             # duration = get_audio_duration(key)
 
-            url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{key}"
+#             url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{key}"
 
-            metadata = {
-                "filename": filename,
-                "content_length": metadata_response['ContentLength'],
-                "last_modified": last_modified,
-                "content_type": metadata_response['ContentType'],
-                # "duration": duration,
-                "url": url,
-            }
-            metadata_list.append(metadata)
+#             metadata = {
+#                 "filename": filename,
+#                 "content_length": metadata_response['ContentLength'],
+#                 "last_modified": last_modified,
+#                 "content_type": metadata_response['ContentType'],
+#                 # "duration": duration,
+#                 "url": url,
+#             }
+#             metadata_list.append(metadata)
 
-    except ClientError as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching audio metadata: {str(e)}")
+#     except ClientError as e:
+#         raise HTTPException(status_code=500, detail=f"Error fetching audio metadata: {str(e)}")
 
-    return JSONResponse(content=metadata_list, status_code=200)
+#     return JSONResponse(content=metadata_list, status_code=200)
