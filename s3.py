@@ -37,9 +37,9 @@ def create_s3_name(file_name, doctor_id):
 
 
 @router.post("/audio/upload")
-async def upload_file(doctor_id: int, patient_name: str, file_upload: UploadFile = File(...), db:Session = Depends(get_db), s3: Session = Depends(get_s3)):
+async def upload_file(doctor_id: int, patient_name: str, file_upload: UploadFile = File(...), db:Session = Depends(get_db), s3 = Depends(get_s3)):
     if not file_upload.size:
-        return HTMLResponse(content="File is empty!", status_code=415)
+        return HTTPException(status_code=415, detail="File is empty!")
 
     file: io.BytesIO
 
@@ -69,7 +69,19 @@ async def upload_file(doctor_id: int, patient_name: str, file_upload: UploadFile
         db.rollback()  # Rollback in case of error
         raise HTTPException(status_code=500, detail=f"Failed to save file metadata: {str(e)}")
 
-    
+@router.post("/audio/edit/{id}")
+async def edit_AudioFile(id: int, new_filename: str, s3 = Depends(get_s3), db: Session = Depends(get_db)):
+    filename = get_AudioFile_filename_by_id(id, db=db)
+    try:
+        s3.copy_object(Bucket = BUCKET_NAME, CopySource = "audios/" + filename, Key = "audios/" + new_filename)
+        s3.delete_object(Bucket = BUCKET_NAME, Key = "audios/" + filename)
+        db_audio = get_AudioFile_by_id(id=id, db=db)
+        db_audio.file_name = new_filename
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"An error occured: {e}")
+
 
 @router.get("/audio/get_all_file_detail")
 async def get_all_file_detail(s3 = Depends(get_s3)):
