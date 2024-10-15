@@ -2,12 +2,13 @@ import boto3.s3
 from models import AudioFile
 import boto3
 from botocore.exceptions import ClientError
-from fastapi import APIRouter, FastAPI, HTTPException, Depends, UploadFile, Response, status, File
+from fastapi import APIRouter, FastAPI, HTTPException, Depends, UploadFile, Response, status, File, Form
 from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel
 from settings import *
 import uuid
 from crud import *
+from typing import Annotated
 
 import tempfile
 import io
@@ -37,7 +38,7 @@ def create_s3_name(file_name, doctor_id):
 
 
 @router.post("/audio/upload")
-async def upload_file(doctor_id: int, patient_name: str, file_upload: UploadFile = File(...), db:Session = Depends(get_db), s3 = Depends(get_s3)):
+async def upload_file(doctor_id: Annotated[int, Form()], patient_name: Annotated[str, Form()], file_upload: UploadFile = File(...), db: Session = Depends(get_db), s3 = Depends(get_s3)):
     if not file_upload.size:
         return HTTPException(status_code=415, detail="File is empty!")
 
