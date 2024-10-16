@@ -2,7 +2,7 @@ import boto3.s3
 from models import AudioFile
 import boto3
 from botocore.exceptions import ClientError
-from fastapi import APIRouter, FastAPI, HTTPException, Depends, UploadFile, Response, status, File
+from fastapi import APIRouter, FastAPI, HTTPException, Depends, UploadFile, Response, status, File, Form
 from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel
 from settings import *
@@ -46,7 +46,7 @@ class AudioMetadata(BaseModel):
     content_type: str
 
 @router.post("/audio/upload")
-async def upload_file(doctor_id: int, patient_name: str, file_upload: UploadFile = File(...), db:Session = Depends(get_db), s3: Session = Depends(get_s3)):
+async def upload_file(doctor_id: int = Form(...), patient_name: str = Form(...), file_upload: UploadFile = File(...), db:Session = Depends(get_db), s3: Session = Depends(get_s3)):
     if not file_upload.size:
         return HTMLResponse(content="File is empty!", status_code=415)
 
@@ -105,9 +105,10 @@ async def download_file(filename: str, s3 = Depends(get_s3)):
 @router.delete("/audio/delete/{id}")
 async def delete_file(id: int, s3 = Depends(get_s3), db: Session = Depends(get_db)):
     try:
-        filename = get_AudioFile_filename_by_id(id=id, db=db)
+        # filename = get_AudioFile_filename_by_id(id=id, db=db)
+        s3_key = get_AudioFile_s3name_by_id(id=id, db=db)
         db_audio = delete_AudioFile(id=id, db=db)
-        s3.delete_object(Bucket=BUCKET_NAME, Key="/Audio/"+filename)
+        s3.delete_object(Bucket=BUCKET_NAME, Key="/audios/"+s3_key)
         db_audio.commit()
 
     except:

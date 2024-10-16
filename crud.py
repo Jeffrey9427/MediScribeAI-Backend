@@ -5,8 +5,14 @@ import schemas
 from datetime import date, datetime, timedelta
 from typing import Optional, Union
 
+def get_AudioFiles(db:Session):
+    return db.query(models.AudioFile).filename, db.query(models.AudioFile).created_at   # for frontend, also the duration
+
 def get_AudioFile_by_id(id: int, db: Session):
     return db.query(models.AudioFile).filter(models.AudioFile.id == id).first()
+
+def get_AudioFile_s3name_by_id(id: int, db: Session) -> str:
+    return get_AudioFile_by_id(id=id, db=db).s3_key
 
 def get_AudioFile_filename_by_id(id: int, db: Session) -> str:
     return get_AudioFile_by_id(id=id, db=db).file_name
