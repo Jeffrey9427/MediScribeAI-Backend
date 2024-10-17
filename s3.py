@@ -73,19 +73,6 @@ async def upload_file(doctor_id: Annotated[int, Form()], patient_name: Annotated
         db.rollback()  # Rollback in case of error
         raise HTTPException(status_code=500, detail=f"Failed to save file metadata: {str(e)}")
 
-# @router.put("/audio/edit/{id}")
-# async def edit_AudioFile(id: int, new_filename: str, s3 = Depends(get_s3), db: Session = Depends(get_db)):
-#     filename = get_AudioFile_filename_by_id(id, db=db)
-#     try:
-#         s3.copy_object(Bucket = BUCKET_NAME, CopySource = "audios/" + filename, Key = "audios/" + new_filename)
-#         s3.delete_object(Bucket = BUCKET_NAME, Key = "audios/" + filename)
-#         db_audio = get_AudioFile_by_id(id=id, db=db)
-#         db_audio.file_name = new_filename
-#         db.commit()
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"An error occured: {e}")
-
 @router.put("/audio/edit/{s3_key}")
 async def edit_AudioFile(s3_key: str, request: UpdateAudioFilenameRequest, s3 = Depends(get_s3), db: Session = Depends(get_db)):
     parts = s3_key.split('_', 2) 
