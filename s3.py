@@ -75,10 +75,11 @@ async def upload_file(doctor_id: Annotated[int, Form()], patient_name: Annotated
 
 @router.put("/audio/edit/{s3_key}")
 async def edit_AudioFile(s3_key: str, request: UpdateAudioFilenameRequest, s3 = Depends(get_s3), db: Session = Depends(get_db)):
-    parts = s3_key.split('_', 2) 
+    parts = s3_key.split('_', 2)
+    file_format = parts[-1].split('.')[1]
     
     if len(parts) == 3:
-        updated_s3_key = f"{parts[0]}_{parts[1]}_{request.new_filename}"
+        updated_s3_key = f"{parts[0]}_{parts[1]}_{request.new_filename}.{file_format}"
     else:
         raise HTTPException(status_code=400, detail="Invalid filename format")
 
