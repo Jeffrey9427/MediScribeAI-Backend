@@ -71,12 +71,12 @@ async def upload_file(doctor_id: Annotated[int, Form()], patient_name: Annotated
         raise HTTPException(status_code=500, detail=f"Failed to save file metadata: {str(e)}")
 
 @router.post("/audio/edit/{id}")
-async def edit_AudioFile(id: int, new_filename: str, s3 = Depends(get_s3), db: Session = Depends(get_db)):
-    filename = get_AudioFile_filename_by_id(id, db=db)
+async def edit_AudioFile(s3_key: str, new_filename: str, s3 = Depends(get_s3), db: Session = Depends(get_db)):
+    filename = get_AudioFile_filename_by_s3_key(s3_key=s3_key, db=db)
     try:
         s3.copy_object(Bucket = BUCKET_NAME, CopySource = "audios/" + filename, Key = "audios/" + new_filename)
         s3.delete_object(Bucket = BUCKET_NAME, Key = "audios/" + filename)
-        db_audio = get_AudioFile_by_id(id=id, db=db)
+        db_audio = get_AudioFile_by_s3_key(id=s3_key, db=db)
         db_audio.file_name = new_filename
         db.commit()
     except Exception as e:
@@ -105,10 +105,10 @@ async def download_file(filename: str, s3 = Depends(get_s3)):
     )
 
 @router.delete("/audio/delete/{id}")
-async def delete_file(id: int, s3 = Depends(get_s3), db: Session = Depends(get_db)):
+async def delete_file(s3_key: str, s3 = Depends(get_s3), db: Session = Depends(get_db)):
     try:
-        filename = get_AudioFile_filename_by_id(id=id, db=db)
-        db_audio = delete_AudioFile(id=id, db=db)
+        filename = get_AudioFile_filename_by_s3_key(s3_key=s3_key, db=db)
+        db_audio = delete_AudioFile(s3_key=s3_key, db=db)
         s3.delete_object(Bucket=BUCKET_NAME, Key="/Audio/"+filename)
         db_audio.commit()
 

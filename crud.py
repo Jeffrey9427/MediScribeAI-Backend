@@ -5,19 +5,19 @@ import schemas
 from datetime import date, datetime, timedelta
 from typing import Optional, Union
 
-def get_AudioFile_by_id(id: int, db: Session):
-    return db.query(models.AudioFile).filter(models.AudioFile.id == id).first()
+def get_AudioFile_by_s3_key(s3_key: str, db: Session):
+    return db.query(models.AudioFile).filter(models.AudioFile.s3_key == s3_key).first()
 
-def get_AudioFile_filename_by_id(id: int, db: Session) -> str:
-    return get_AudioFile_by_id(id=id, db=db).file_name
+def get_AudioFile_filename_by_s3_key(s3_key: str, db: Session) -> str:
+    return get_AudioFile_by_s3_key(s3_key=s3_key, db=db).file_name
 
-def delete_AudioFile(id: int, db: Session):
-    db_audio = get_AudioFile_by_id(id=id, db=db)
+def delete_AudioFile(s3_key: str, db: Session):
+    db_audio = get_AudioFile_by_s3_key(s3_key=s3_key, db=db)
     db.delete(db_audio)
     return db
 
 
-def new_AudioFile(doctor_id,patient_name,s3_name,filename, db: Session):
+def new_AudioFile(doctor_id: int, patient_name: str, s3_name: str,filename: str, db: Session):
     audio_file_record = models.AudioFile(
         doctor_id=doctor_id,
         file_name=filename,
