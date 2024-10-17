@@ -4,21 +4,18 @@ import models
 import schemas
 from datetime import date, datetime, timedelta
 from typing import Optional, Union
+from settings import *
+import boto3
+from botocore.exceptions import ClientError
 
 def get_AudioFiles(db:Session):
-    return db.query(models.AudioFile).filename, db.query(models.AudioFile).created_at   # for frontend, also the duration
+    return db.query(models.AudioFile).all()
 
-def get_AudioFile_by_id(id: int, db: Session):
-    return db.query(models.AudioFile).filter(models.AudioFile.id == id).first()
+def get_AudioFile_by_s3key(s3_key: str, db: Session):
+    return db.query(models.AudioFile).filter(models.AudioFile.s3_key == s3_key).first()
 
-def get_AudioFile_s3name_by_id(id: int, db: Session) -> str:
-    return get_AudioFile_by_id(id=id, db=db).s3_key
-
-def get_AudioFile_filename_by_id(id: int, db: Session) -> str:
-    return get_AudioFile_by_id(id=id, db=db).file_name
-
-def delete_AudioFile(id: int, db: Session):
-    db_audio = get_AudioFile_by_id(id=id, db=db)
+def delete_AudioFile(s3_key: str, db: Session):
+    db_audio = get_AudioFile_by_s3key(s3_key=s3_key, db=db)
     db.delete(db_audio)
     return db
 
